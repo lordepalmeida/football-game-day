@@ -67,7 +67,7 @@ def probabilidade(f):
 
 
 def escalao(p):
-    return "ALTA" if p >= MODELO["corte_alta"] else "média" if p >= MODELO["corte_media"] else "baixa"
+    return "ALTA" if p >= MODELO.get("corte_alta", 0.315) else "média" if p >= MODELO.get("corte_media", 0.288) else "baixa"
 
 
 def analisar(partidas, liga, dia, epoca_inicio):
@@ -143,12 +143,14 @@ def pagina(linhas, dia):
                  f"<td>{'✅' if L['filtro'] else ''}</td><td>{html.escape(L['nota'])}</td></tr>")
     return f"""<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Jogos de {dia:%d/%m}</title><style>body{{font-family:system-ui;margin:16px;max-width:900px}}table{{border-collapse:collapse;width:100%}}
-td,th{{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}}tr.ok{{background:#e8f6ec}}small{{color:#666}}.tag{{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}}.ALTA{{background:#1b8a3a;color:#fff}}.média{{background:#f0b429;color:#222}}.baixa{{background:#d5d9de;color:#333}}.leg{{border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 14px;font-size:14px}}.leg div{{margin:4px 0}}</style></head><body>
-<h2>Jogos de {dia:%d/%m/%Y}</h2><div class="leg"><b>Escala da probabilidade de empate</b>
+td,th{{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}}tr.ok{{background:#e8f6ec}}small{{color:#666}}.tag{{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}}.ALTA{{background:#1b8a3a;color:#fff}}.média{{background:#f0b429;color:#222}}.baixa{{background:#d5d9de;color:#333}}.leg{{border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:16px 0 8px;font-size:14px}}.leg div{{margin:4px 0}}</style></head><body>
+<h2>Jogos de {dia:%d/%m/%Y}</h2><table><tr><th>Hora</th><th>Liga</th><th>Jogo</th><th>Tabela</th><th>P(empate)</th><th>Golos marcados/jogo</th><th>Filtro</th><th>Nota</th></tr>{rows}</table>
+<div class="leg"><b>Escala da probabilidade de empate</b>
 <div><span class="tag ALTA">ALTA</span> 31,5% ou mais &nbsp;·&nbsp; nos jogos históricos com ✅ empataram ~33%</div>
 <div><span class="tag média">média</span> 28,8% a 31,5% &nbsp;·&nbsp; empataram ~31%</div>
 <div><span class="tag baixa">baixa</span> menos de 28,8% &nbsp;·&nbsp; empataram ~28%</div>
-<div><small>Média de todos os jogos: {MODELO['taxa']:.0%}. ✅ = elegível, ≥{MIN_JOGOS} jogos e equipas perto na tabela. Estimativa com pouco poder de previsão.</small></div></div><table><tr><th>Hora</th><th>Liga</th><th>Jogo</th><th>Tabela</th><th>P(empate)</th><th>Golos marcados/jogo</th><th>Filtro</th><th>Nota</th></tr>{rows}</table>
+<div style="margin-top:8px"><b>Golos marcados/jogo:</b> média de golos marcados por jogo pelas duas equipas nos últimos 10 jogos de cada uma. Quanto menos golos marcam, mais empates: abaixo de 1,2 → ~31–32%; acima de 1,45 → ~26%.</div>
+<div><small>Média de todos os jogos: {MODELO['taxa']:.0%}. ✅ = elegível, ≥{MIN_JOGOS} jogos e equipas perto na tabela. Estimativa com pouco poder de previsão.</small></div></div>
 <p><small>Use a probabilidade como filtro, não como certeza.</small></p></body></html>"""
 
 
