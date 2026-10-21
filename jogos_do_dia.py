@@ -125,7 +125,7 @@ def texto(linhas, dia):
             out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} - {L['fora']} | {L['nota']}")
         else:
             extra = ""
-            out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} ({L['pos_casa']}º) - {L['fora']} ({L['pos_fora']}º) | P {L['p']:.0%} {escalao(L['p'])} | marcam {L['feat']['marcam']:.2f} golos/jogo{extra}" + (f" | {L['nota']}" if L["nota"] else ""))
+            out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} ({L['pos_casa']}º) - {L['fora']} ({L['pos_fora']}º) | P {L['p']:.1%} {escalao(L['p'])} | marcam {L['feat']['marcam']:.2f} golos/jogo{extra}" + (f" | {L['nota']}" if L["nota"] else ""))
     out += ["", "✅ = jogo elegível, ≥5 jogos de cada equipa e equipas perto na tabela (≤6 posições, ou empatadas em pontos com o limite das 6 posições).",
             "Escala: ALTA ≥31,5% (históricos ✅: ~33% empates) | média 28,8–31,5% (~31%) | baixa <28,8% (~28%).", "Estimativa com pouco poder de previsão."]
     return "\n".join(out)
@@ -134,7 +134,7 @@ def texto(linhas, dia):
 def pagina(linhas, dia):
     rows = ""
     for L in sorted(linhas, key=lambda x: (not x["filtro"], x["hora"], x["liga"])):
-        p = "-" if L["p"] is None else f"{L['p']:.0%}"
+        p = "-" if L["p"] is None else f"{L['p']:.1%}"
         esc = "" if L["p"] is None else escalao(L["p"])
         pos = "" if L["p"] is None else f"{L['pos_casa']}º vs {L['pos_fora']}º"
         gm = "" if L["p"] is None else f"{L['feat']['marcam']:.2f}"
