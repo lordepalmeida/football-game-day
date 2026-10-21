@@ -19,8 +19,8 @@ LISBOA = ZoneInfo("Europe/Lisbon")
 LIGAS = {"PPL": ("Liga Portugal", "PT"), "PD": ("La Liga", "ES"), "SA": ("Serie A", "IT")}
 NOMES = {"PT": "Liga Portugal", "ES": "La Liga", "IT": "Serie A"}
 LIMITE_POSICOES = 6      # diferença máxima de posições na tabela
+TOLERANCIA_PONTOS = 0     # também entram equipas empatadas em pontos com a equipa que está no limite das 6 posições
 MIN_JOGOS = 5            # jogos mínimos de cada equipa na época
-MAX_SIMULTANEOS = 2      # jogos filtrados à mesma hora; acima disto salta-se
 
 
 def norm(s):
@@ -67,7 +67,7 @@ def probabilidade(f):
 
 
 def escalao(p):
-    return "ALTA" if p >= MODELO["p75"] else "média" if p >= MODELO["p50"] else "baixa"
+    return "ALTA" if p >= MODELO["corte_alta"] else "média" if p >= MODELO["corte_media"] else "baixa"
 
 
 def analisar(partidas, liga, dia, epoca_inicio):
@@ -86,7 +86,7 @@ def analisar(partidas, liga, dia, epoca_inicio):
         if p["data"] >= epoca_inicio:
             for t, pts, gm, gs in ((p["casa"], pc, gc, gf), (p["fora"], pf, gf, gc)):
                 r = tab.setdefault(t, [0, 0, 0, 0]); r[0] += pts; r[1] += gm - gs; r[2] += gm; r[3] += 1
-    ordem = sorted(tab, key=lambda t: (-tab[t][0], -tab[t][1], -tab[t][2], t)); pos = {t: i + 1 for i, t in enumerate(ordem)}
+    ordem = sorted(tab, key=lambda t: (-tab[t][0], -tab[t][1], -tab[t][2], t)); pos = {t: i + 1 for i, t in enumerate(ordem)}; pts_pos = [tab[t][0] for t in ordem]
     linhas = []
     for p in partidas:
         if p["gc"] is not None or p["data"].astimezone(LISBOA).date() != dia: continue
@@ -99,19 +99,19 @@ def analisar(partidas, liga, dia, epoca_inicio):
         feat = dict(dpos=abs(pos[c] - pos[f]), formad=abs(sh["pt"] - sa["pt"]), golos=(sh["tg"] + sa["tg"]) / 2,
                     tend=(sh["dr"] + sa["dr"]) / 2, marcam=(sh["gf"] + sa["gf"]) / 2, sofrem=(sh["ga"] + sa["ga"]) / 2)
         L["feat"] = feat; L["p"] = probabilidade(feat)
-        L["filtro"] = L["elegivel"] and feat["dpos"] <= LIMITE_POSICOES and L["jogos"] >= MIN_JOGOS
+        # perto na tabela: ≤6 posições OU a equipa de baixo tem os mesmos pontos da que fica no limite (e vice-versa)
+        t, b = min(pos[c], pos[f]), max(pos[c], pos[f]); n = len(pts_pos)
+        p_top, p_bot = pts_pos[t - 1], pts_pos[b - 1]
+        limite_baixo, limite_cima = pts_pos[min(t + LIMITE_POSICOES, n) - 1], pts_pos[max(b - LIMITE_POSICOES, 1) - 1]
+        perto_pos = feat["dpos"] <= LIMITE_POSICOES
+        perto_pts = p_bot >= limite_baixo - TOLERANCIA_PONTOS or p_top <= limite_cima + TOLERANCIA_PONTOS
+        L["por_tolerancia"] = (not perto_pos) and perto_pts
+        L["filtro"] = L["elegivel"] and (perto_pos or perto_pts) and L["jogos"] >= MIN_JOGOS
         if not L["elegivel"]: L["nota"] = "jogo de grande contra equipa fora do grupo: fora da estratégia"
         elif L["jogos"] < MIN_JOGOS: L["nota"] = f"menos de {MIN_JOGOS} jogos na época"
-        elif feat["dpos"] > LIMITE_POSICOES: L["nota"] = f"{feat['dpos']} posições de diferença (máx. {LIMITE_POSICOES})"
+        elif not (perto_pos or perto_pts): L["nota"] = f"{feat['dpos']} posições e {abs(p_top - p_bot)} pontos de diferença: longe na tabela"
+        elif L["por_tolerancia"]: L["nota"] = f"incluído por tolerância de pontos ({feat['dpos']} posições, {abs(p_top - p_bot)} pts)"
         linhas.append(L)
-    # simultâneos: jogos que passam o filtro, à mesma hora, na mesma liga
-    por_hora = {}
-    for L in linhas:
-        if L["filtro"]: por_hora.setdefault(L["hora"], []).append(L)
-    for hora, g in por_hora.items():
-        for L in g: L["simult"] = len(g)
-        if len(g) > MAX_SIMULTANEOS:
-            for L in g: L["filtro"] = False; L["nota"] = f"{len(g)} jogos filtrados à mesma hora (máx. {MAX_SIMULTANEOS}): saltar"
     return linhas
 
 
@@ -124,10 +124,10 @@ def texto(linhas, dia):
         if L["p"] is None:
             out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} - {L['fora']} | {L['nota']}")
         else:
-            extra = f" (jogos simultâneos: {L['simult']})" if L.get("simult", 0) > 1 else ""
-            out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} ({L['pos_casa']}º) - {L['fora']} ({L['pos_fora']}º) | P {L['p']:.0%} {escalao(L['p'])}{extra}" + (f" | {L['nota']}" if L["nota"] else ""))
-    out += ["", "✅ = passa o filtro (≤6 posições, ≥5 jogos, jogo elegível, ≤2 simultâneos).",
-            "A probabilidade é uma estimativa com pouco poder de previsão (nos testes, os 25% mais prováveis empataram ~32% e os menos prováveis ~25%)."]
+            extra = ""
+            out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} ({L['pos_casa']}º) - {L['fora']} ({L['pos_fora']}º) | P {L['p']:.0%} {escalao(L['p'])} | marcam {L['feat']['marcam']:.2f} golos/jogo{extra}" + (f" | {L['nota']}" if L["nota"] else ""))
+    out += ["", "✅ = jogo elegível, ≥5 jogos de cada equipa e equipas perto na tabela (≤6 posições, ou empatadas em pontos com o limite das 6 posições).",
+            "Escala: ALTA ≥31,5% (históricos ✅: ~33% empates) | média 28,8–31,5% (~31%) | baixa <28,8% (~28%).", "Estimativa com pouco poder de previsão."]
     return "\n".join(out)
 
 
@@ -137,15 +137,19 @@ def pagina(linhas, dia):
         p = "-" if L["p"] is None else f"{L['p']:.0%}"
         esc = "" if L["p"] is None else escalao(L["p"])
         pos = "" if L["p"] is None else f"{L['pos_casa']}º vs {L['pos_fora']}º"
+        gm = "" if L["p"] is None else f"{L['feat']['marcam']:.2f}"
         rows += (f"<tr class='{'ok' if L['filtro'] else ''}'><td>{L['hora']:%H:%M}</td><td>{html.escape(NOMES[L['liga']])}</td>"
-                 f"<td>{html.escape(L['casa'])} - {html.escape(L['fora'])}</td><td>{pos}</td><td><b>{p}</b> {esc}</td>"
+                 f"<td>{html.escape(L['casa'])} - {html.escape(L['fora'])}</td><td>{pos}</td><td><b>{p}</b> <span class='tag {esc}'>{esc}</span></td><td>{gm}</td>"
                  f"<td>{'✅' if L['filtro'] else ''}</td><td>{html.escape(L['nota'])}</td></tr>")
     return f"""<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Jogos de {dia:%d/%m}</title><style>body{{font-family:system-ui;margin:16px;max-width:900px}}table{{border-collapse:collapse;width:100%}}
-td,th{{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}}tr.ok{{background:#e8f6ec}}small{{color:#666}}</style></head><body>
-<h2>Jogos de {dia:%d/%m/%Y}</h2><table><tr><th>Hora</th><th>Liga</th><th>Jogo</th><th>Tabela</th><th>P(empate)</th><th>Filtro</th><th>Nota</th></tr>{rows}</table>
-<p><small>Média histórica de empates: {MODELO['taxa']:.0%}. ✅ = ≤{LIMITE_POSICOES} posições, ≥{MIN_JOGOS} jogos, elegível, ≤{MAX_SIMULTANEOS} simultâneos.
-A probabilidade tem pouco poder de previsão; use-a como filtro, não como certeza.</small></p></body></html>"""
+td,th{{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}}tr.ok{{background:#e8f6ec}}small{{color:#666}}.tag{{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}}.ALTA{{background:#1b8a3a;color:#fff}}.média{{background:#f0b429;color:#222}}.baixa{{background:#d5d9de;color:#333}}.leg{{border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 14px;font-size:14px}}.leg div{{margin:4px 0}}</style></head><body>
+<h2>Jogos de {dia:%d/%m/%Y}</h2><div class="leg"><b>Escala da probabilidade de empate</b>
+<div><span class="tag ALTA">ALTA</span> 31,5% ou mais &nbsp;·&nbsp; nos jogos históricos com ✅ empataram ~33%</div>
+<div><span class="tag média">média</span> 28,8% a 31,5% &nbsp;·&nbsp; empataram ~31%</div>
+<div><span class="tag baixa">baixa</span> menos de 28,8% &nbsp;·&nbsp; empataram ~28%</div>
+<div><small>Média de todos os jogos: {MODELO['taxa']:.0%}. ✅ = elegível, ≥{MIN_JOGOS} jogos e equipas perto na tabela. Estimativa com pouco poder de previsão.</small></div></div><table><tr><th>Hora</th><th>Liga</th><th>Jogo</th><th>Tabela</th><th>P(empate)</th><th>Golos marcados/jogo</th><th>Filtro</th><th>Nota</th></tr>{rows}</table>
+<p><small>Use a probabilidade como filtro, não como certeza.</small></p></body></html>"""
 
 
 # ---------------------------------------------------------------- API
