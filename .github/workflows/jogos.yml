@@ -1,0 +1,28 @@
+name: Gameday
+on:
+  schedule:
+    - cron: "0 7 * * *"      # todos os dias às 07:00 UTC (08:00 em Lisboa no verão, 07:00 no inverno)
+  workflow_dispatch:          # permite correr à mão no separador Actions
+permissions:
+  contents: write
+jobs:
+  jogos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Gerar página
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python jogos_do_dia.py --saida docs/index.html
+      - name: Guardar página
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs/index.html
+          git diff --cached --quiet || git commit -m "Jogos $(date +%F)"
+          git push
