@@ -52,7 +52,7 @@ def elegivel(liga, casa, fora):
 # ---------------------------------------------------------------- características
 def _stats(q):
     l = list(q)
-    if len(l) < 8: return None
+    if len(l) < MIN_JOGOS: return None   # equipas promovidas: pouco histórico, mas já com o mínimo de jogos
     l10 = l[-10:]
     m = lambda xs: sum(xs) / len(xs)
     return dict(tg=m([x[0] + x[1] for x in l10]), ga=m([x[1] for x in l10]), gf=m([x[0] for x in l10]),
@@ -99,6 +99,8 @@ def analisar(partidas, liga, dia, epoca_inicio):
         feat = dict(dpos=abs(pos[c] - pos[f]), formad=abs(sh["pt"] - sa["pt"]), golos=(sh["tg"] + sa["tg"]) / 2,
                     tend=(sh["dr"] + sa["dr"]) / 2, marcam=(sh["gf"] + sa["gf"]) / 2, sofrem=(sh["ga"] + sa["ga"]) / 2)
         L["feat"] = feat; L["p"] = probabilidade(feat)
+        n_hist = min(len(hist[c]), len(hist[f]))
+        aviso = f" (só {n_hist} jogos de histórico: estimativa menos fiável)" if n_hist < 10 else ""
         # perto na tabela: ≤6 posições OU a equipa de baixo tem os mesmos pontos da que fica no limite (e vice-versa)
         t, b = min(pos[c], pos[f]), max(pos[c], pos[f]); n = len(pts_pos)
         p_top, p_bot = pts_pos[t - 1], pts_pos[b - 1]
@@ -111,14 +113,15 @@ def analisar(partidas, liga, dia, epoca_inicio):
         elif L["jogos"] < MIN_JOGOS: L["nota"] = f"menos de {MIN_JOGOS} jogos na época"
         elif not (perto_pos or perto_pts): L["nota"] = f"{feat['dpos']} posições e {abs(p_top - p_bot)} pontos de diferença: longe na tabela"
         elif L["por_tolerancia"]: L["nota"] = f"incluído por tolerância de pontos ({feat['dpos']} posições, {abs(p_top - p_bot)} pts)"
+        if aviso: L["nota"] = (L["nota"] + aviso).strip()
         linhas.append(L)
     return linhas
 
 
 # ---------------------------------------------------------------- apresentação
 def texto(linhas, dia):
-    out = [f"Jogos de {dia:%d/%m/%Y}  (P = probabilidade de empate estimada; média histórica {MODELO['taxa']:.0%})", ""]
-    if not linhas: return "\n".join(out + ["Sem jogos nas 3 ligas."])
+    out = [f"Jogos de {dia:%d/%m/%Y}  (P = probabilidade de empate estimada)", ""]
+    if not linhas: return "\n".join(out + ["Hoje não há jogos da Liga Portugal, La Liga nem Serie A."])
     for L in sorted(linhas, key=lambda x: (not x["filtro"], x["hora"], x["liga"])):
         marca = "✅" if L["filtro"] else "  "
         if L["p"] is None:
@@ -141,6 +144,8 @@ def pagina(linhas, dia):
         rows += (f"<tr class='{'ok' if L['filtro'] else ''}'><td>{L['hora']:%H:%M}</td><td>{html.escape(NOMES[L['liga']])}</td>"
                  f"<td>{html.escape(L['casa'])} - {html.escape(L['fora'])}</td><td>{pos}</td><td><b>{p}</b> <span class='tag {esc}'>{esc}</span></td><td>{gm}</td>"
                  f"<td>{'✅' if L['filtro'] else ''}</td><td>{html.escape(L['nota'])}</td></tr>")
+    if not linhas:
+        rows = "<tr><td colspan='8'><b>Hoje não há jogos da Liga Portugal, La Liga nem Serie A.</b></td></tr>"
     return f"""<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Jogos de {dia:%d/%m}</title><style>body{{font-family:system-ui;margin:16px;max-width:900px}}table{{border-collapse:collapse;width:100%}}
 td,th{{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}}tr.ok{{background:#e8f6ec}}small{{color:#666}}.tag{{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}}.ALTA{{background:#1b8a3a;color:#fff}}.média{{background:#f0b429;color:#222}}.baixa{{background:#d5d9de;color:#333}}.leg{{border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:16px 0 8px;font-size:14px}}.leg div{{margin:4px 0}}</style></head><body>
