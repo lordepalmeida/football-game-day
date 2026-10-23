@@ -113,6 +113,8 @@ def analisar(partidas, liga, dia, epoca_inicio):
         elif L["jogos"] < MIN_JOGOS: L["nota"] = f"menos de {MIN_JOGOS} jogos na época"
         elif not (perto_pos or perto_pts): L["nota"] = f"{feat['dpos']} posições e {abs(p_top - p_bot)} pontos de diferença: longe na tabela"
         elif L["por_tolerancia"]: L["nota"] = f"incluído por tolerância de pontos ({feat['dpos']} posições, {abs(p_top - p_bot)} pts)"
+        if L["filtro"] and L["p"] < MODELO.get("corte_media", 0.288):
+            L["filtro"] = False; L["nota"] = "passa o filtro da tabela, mas probabilidade baixa: fora da estratégia"
         if aviso: L["nota"] = (L["nota"] + aviso).strip()
         linhas.append(L)
     return linhas
@@ -129,7 +131,7 @@ def texto(linhas, dia):
         else:
             extra = ""
             out.append(f"{marca} {L['hora']:%H:%M} {NOMES[L['liga']]}: {L['casa']} ({L['pos_casa']}º) - {L['fora']} ({L['pos_fora']}º) | P {L['p']:.1%} {escalao(L['p'])} | marcam {L['feat']['marcam']:.2f} golos/jogo{extra}" + (f" | {L['nota']}" if L["nota"] else ""))
-    out += ["", "✅ = jogo elegível, ≥5 jogos de cada equipa e equipas perto na tabela (≤6 posições, ou empatadas em pontos com o limite das 6 posições).",
+    out += ["", "✅ = jogo elegível, ≥5 jogos de cada equipa, equipas perto na tabela (≤6 posições, ou os mesmos pontos da equipa no limite) e probabilidade média ou alta.",
             "Escala: ALTA ≥31,5% (históricos ✅: ~33% empates) | média 28,8–31,5% (~31%) | baixa <28,8% (~28%).", "Estimativa com pouco poder de previsão."]
     return "\n".join(out)
 
@@ -155,7 +157,7 @@ td,th{{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;font-size:14
 <div><span class="tag média">média</span> 28,8% a 31,5% &nbsp;·&nbsp; empataram ~31%</div>
 <div><span class="tag baixa">baixa</span> menos de 28,8% &nbsp;·&nbsp; empataram ~28%</div>
 <div style="margin-top:8px"><b>Golos marcados/jogo:</b> média de golos marcados por jogo pelas duas equipas nos últimos 10 jogos de cada uma. Quanto menos golos marcam, mais empates: abaixo de 1,2 → ~31–32%; acima de 1,45 → ~26%.</div>
-<div><small>✅ = jogo elegível, ≥{MIN_JOGOS} jogos de cada equipa e equipas perto na tabela (≤{LIMITE_POSICOES} posições de diferença, ou os mesmos pontos da equipa que fica no limite). Estimativa com pouco poder de previsão.</small></div></div>
+<div><small>✅ = jogo elegível, ≥{MIN_JOGOS} jogos de cada equipa, equipas perto na tabela (≤{LIMITE_POSICOES} posições de diferença, ou os mesmos pontos da equipa que fica no limite) e probabilidade média ou alta. Estimativa com pouco poder de previsão.</small></div></div>
 <p><small>Use a probabilidade como filtro, não como certeza.</small></p></body></html>"""
 
 
