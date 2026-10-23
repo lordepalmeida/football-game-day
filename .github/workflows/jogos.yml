@@ -1,7 +1,8 @@
 name: Gameday
 on:
   schedule:
-    - cron: "0 7 * * *"      # todos os dias às 07:00 UTC (08:00 em Lisboa no verão, 07:00 no inverno)
+    - cron: "0 23 * * *"     # meia-noite em Lisboa no verão (UTC+1)
+    - cron: "0 0 * * *"      # meia-noite em Lisboa no inverno (UTC+0)
   workflow_dispatch:          # permite correr à mão no separador Actions
 permissions:
   contents: write
@@ -18,7 +19,11 @@ jobs:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python jogos_do_dia.py --saida docs/index.html
+        run: |
+          # só corre perto da meia-noite de Lisboa (o GitHub usa horas UTC); à mão corre sempre
+          H=$(TZ=Europe/Lisbon date +%H)
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$H" != "00" ] && [ "$H" != "01" ]; then echo "Fora da hora (Lisboa $H h): a saltar"; exit 0; fi
+          python jogos_do_dia.py --saida docs/index.html
       - name: Guardar página
         run: |
           git config user.name "github-actions"
